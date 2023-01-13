@@ -10,10 +10,6 @@
 | prs-prod-1     | Production     | https://raw.githubusercontent.com/doccla/identity-service-jwks/main/production/jwks.json     |
 | prs-non-prod-1 | Non-Production | https://raw.githubusercontent.com/doccla/identity-service-jwks/main/non-production/jwks.json |
 
-## Acronym Dictionary
-
-- `prs`: Patient Referral Service
-
 ## Generate Private/Public Key Pair
 
 To generate key pairs for production or test environment, follow these steps:
