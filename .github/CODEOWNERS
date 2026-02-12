@@ -1,1 +1,4 @@
-* @doccla/ehr-integrations
+# See link for details
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#example-of-a-codeowners-file
+
+* @doccla/ehr-integrations @doccla/enrol @doccla/backend
