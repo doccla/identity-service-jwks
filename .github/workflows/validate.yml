@@ -1,0 +1,31 @@
+name: Validate JWKS
+
+on:
+  pull_request:
+    paths:
+      - production/**
+      - non-production/**
+      - .github/workflows/validate.yml
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check each key set is well formed
+        run: |
+          for dir in production non-production; do
+            jq --exit-status '
+              (.keys | type == "array" and length > 0)
+              and all(.keys[]; (.kid | type == "string") and (.kty | type == "string"))
+              and ((.keys | map(.kid) | unique | length) == (.keys | length))
+            ' "${dir}/jwks.json" > /dev/null \
+              || { echo "::error file=${dir}/jwks.json::Not a JWKS with a non-empty keys array of uniquely named keys"; exit 1; }
+          done

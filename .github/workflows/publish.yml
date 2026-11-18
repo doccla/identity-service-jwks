@@ -1,0 +1,84 @@
+name: Publish JWKS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - production/**
+      - non-production/**
+      - .github/workflows/publish.yml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: publish-jwks
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  ROLE_ARN: arn:aws:iam::871328969626:role/jwks-euw2-datastore-prod-deploy
+  ORIGIN_BUCKET: jwks-euw2-datastore-prod
+  JWKS_HOST: jwks.doccla.com
+
+jobs:
+  validate:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/validate.yml
+
+  publish:
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          role-session-name: identity-service-jwks-publish
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload key sets
+        run: |
+          for dir in production non-production; do
+            aws s3 sync "${dir}" "s3://${ORIGIN_BUCKET}/${dir}" \
+              --delete \
+              --exclude "*" --include "*.json" \
+              --content-type application/json
+          done
+
+      - name: Clear the CloudFront cache
+        run: |
+          distribution_id=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Origins.Items[?starts_with(DomainName, '${ORIGIN_BUCKET}.s3.')]] | [0].Id" \
+            --output text)
+          if [ -z "${distribution_id}" ] || [ "${distribution_id}" = "None" ]; then
+            echo "::error::No CloudFront distribution serves ${ORIGIN_BUCKET}"
+            exit 1
+          fi
+          invalidation_id=$(aws cloudfront create-invalidation \
+            --distribution-id "${distribution_id}" \
+            --paths "/production/*" "/non-production/*" \
+            --query Invalidation.Id --output text)
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${distribution_id}" --id "${invalidation_id}"
+
+      - name: Verify the served key sets match the repository
+        run: |
+          for dir in production non-production; do
+            url="https://${JWKS_HOST}/${dir}/jwks.json"
+            curl --fail --silent --show-error \
+              --dump-header headers.txt --output served.json "${url}"
+            cmp served.json "${dir}/jwks.json" \
+              || { echo "::error::${url} does not match ${dir}/jwks.json"; exit 1; }
+            grep --ignore-case --quiet '^content-type: application/json' headers.txt \
+              || { echo "::error::${url} is not served as application/json"; exit 1; }
+          done

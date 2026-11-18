@@ -10,6 +10,15 @@
 | prs-prod-1     | Production     | https://raw.githubusercontent.com/doccla/identity-service-jwks/main/production/jwks.json     |
 | prs-non-prod-1 | Non-Production | https://raw.githubusercontent.com/doccla/identity-service-jwks/main/non-production/jwks.json |
 
+The same key sets are served from `jwks.doccla.com`:
+
+| Environment    | JWKS Endpoint                                    |
+| -------------- | ------------------------------------------------ |
+| Production     | https://jwks.doccla.com/production/jwks.json     |
+| Non-Production | https://jwks.doccla.com/non-production/jwks.json |
+
+A merge to `main` publishes both files to `jwks.doccla.com` automatically. The [Publish JWKS](.github/workflows/publish.yml) workflow uploads them, clears the CDN cache and checks that the served files match this repository.
+
 ## Generate Private/Public Key Pair
 
 To generate key pairs for production or test environment, follow these steps:
